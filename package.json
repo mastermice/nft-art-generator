@@ -1,26 +1,29 @@
 {
-  "name": "nft-art-generator",
-  "version": "1.0.2",
-  "description": "A tool to generate generative NFT art projects.",
-  "main": "bin/index.js",
-  "repository": "https://github.com/NotLuksus/nft-art-generator",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
-  "keywords": [],
-  "author": "NotLuksus",
-  "license": "MIT",
-  "bin": {
-    "nft-generate": "./bin/index.js"
-  },
-  "dependencies": {
-    "boxen": "^5.0.1",
-    "canvas": "^2.8.0",
-    "chalk": "^4.1.1",
-    "image-data-uri": "^2.0.1",
-    "inquirer": "^3.3.0",
-    "merge-images": "^2.0.0",
-    "minimist": "^1.2.5",
-    "ora": "^5.4.1"
-  }
+	"name": "nft-art-generator",
+	"version": "1.0.2",
+	"description": "A tool to generate generative NFT art projects.",
+	"main": "bin/index.js",
+	"repository": "https://github.com/NotLuksus/nft-art-generator",
+	"scripts": {
+		"format": "npm run prettier -- --write",
+		"validate": "npm run lint && npm run prettier -- --list-different",
+		"lint": "eslint ./",
+		"prettier": "prettier \"**/*.+(js|jsx|json|yml|yaml|html|css|less|scss|ts|tsx|md|mdx|graphql|vue|py|java|php|sol)\""
+	},
+	"keywords": [],
+	"author": "NotLuksus",
+	"license": "MIT",
+	"bin": {
+		"nft-generate": "./bin/index.js"
+	},
+	"dependencies": {
+		"boxen": "^5.0.1",
+		"canvas": "^2.8.0",
+		"chalk": "^4.1.1",
+		"image-data-uri": "^2.0.1",
+		"inquirer": "^3.3.0",
+		"merge-images": "^2.0.0",
+		"minimist": "^1.2.5",
+		"ora": "^5.4.1"
+	}
 }
