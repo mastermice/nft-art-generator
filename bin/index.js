@@ -21,6 +21,9 @@ let traits
 let traitsToSort = []
 let order = []
 let weights = {}
+/**
+ * A key-value pair of <traitFileName, traitName>
+ */
 let names = {}
 let weightedTraits = []
 let seen = []
@@ -315,37 +318,98 @@ async function setNames(trait) {
 		})
 		config.names = { ...config.names, ...names }
 	} else {
-		const files = fs.readdirSync(basePath + "/" + trait)
-		files.forEach((file, i) => {
-			names[file] = file.split(".")[0]
+		const filenames = fs.readdirSync(basePath + "/" + trait)
+		const pngFileNames = filenames.filter((file) => file.endsWith(".png"))
+
+		pngFileNames.forEach((fileName, _i) => {
+			names[fileName] = fileName.split(".")[0]
 		})
 	}
 }
 
 //SET WEIGHTS FOR EVERY TRAIT
 async function setWeights(trait) {
-	const hasConfig = !!config.weights
-	const numberOfNames = Object.keys(names).length // filenames?
-	const numberOfWeights = Object.keys(config?.weights ?? {}).length
+	// const traitFileNames = Object.keys(names)
 
-	// If config = correct, continue
-	if (hasConfig && numberOfWeights === numberOfNames) {
-		weights = config.weights
-		return
-	} else {
-		// Print incorrect config (if any)
+	const traitNames = Object.values(names)
+	const weightsConfig = config?.weights ?? {}
+
+	const hasConfig = !!config.weights
+	const numberOfNames = traitNames.length
+	const numberOfWeights = Object.keys(weightsConfig).length
+
+	const traits = Array.from(
+		new Set([...traitNames, ...Object.keys(weightsConfig)]),
+	)
+
+	if (hasConfig && numberOfWeights === numberOfNames) weights = config.weights
+	else {
+		// Handle misconfiguration
 		if (hasConfig) {
-			console.info({
+			const missingTraitWeights = Object.values(names)
+				.map((traitName) => {
+					const hasWeightConfig =
+						Object.keys(weightsConfig).includes(traitName)
+
+					return !hasWeightConfig ? traitName : null
+				})
+				.filter(Boolean)
+
+			const missingTraitFiles = Object.keys(weightsConfig).filter(
+				(traitName) => {
+					const hasTraitFile = traitNames.includes(traitName)
+
+					return !hasTraitFile
+				},
+			)
+
+			const configurationMatrix = traits.map((trait) => {
+				const hasWeight = Object.keys(weightsConfig).includes(trait)
+				const hasFile = traitNames.includes(trait)
+
+				return {
+					trait,
+					hasFile,
+					hasWeight,
+				}
+			})
+			const inValidConfigurationMatrix = configurationMatrix.filter(
+				({ hasFile, hasWeight }) => {
+					const isValid = hasFile && hasWeight
+
+					return !isValid
+				},
+			)
+
+			// Print error and exit
+			console.warn({
 				isCorrectConfig: false,
 				hasConfig,
+				numberOfTraits: traits.length,
 				numberOfWeights,
 				numberOfNames,
+				missingTraitFiles,
+				missingTraitWeights,
 			})
+			console.table(
+				inValidConfigurationMatrix.map(
+					({ trait, hasFile, hasWeight }) => {
+						return {
+							trait,
+							hasFile: hasFile ? "✅" : "❌",
+							hasWeight: hasWeight ? "✅" : "❌",
+						}
+					},
+				),
+				["trait", "hasFile", "hasWeight"],
+			)
+			console.error(`Incorrect config! Please fix your config.json file.`)
+			process.exit(1)
 		}
 
 		const files = await getFilesForTrait(trait)
 		const weightPrompt = []
-		files.forEach((file, i) => {
+		files.forEach((file, _i) => {
 			weightPrompt.push({
 				type: "input",
 				name: names[file] + "_weight",
