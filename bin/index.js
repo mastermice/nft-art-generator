@@ -1,6 +1,5 @@
 #!/usr/bin/env node
 
-//TODO
 //CHECK FOR TRAILING SLASHES ON ALL INPUTS
 
 //IMPORTS
@@ -16,6 +15,7 @@ const ImageDataURI = require("image-data-uri")
 
 //SETTINGS
 const MAX_AMOUNT = 3000
+const askForManualWeightConfigFix = true
 let basePath
 let outputPath
 let traits
@@ -330,7 +330,6 @@ async function setNames(trait) {
 
 //SET WEIGHTS FOR EVERY TRAIT
 async function setWeights(trait) {
-	console.info(`*** ${trait} ***`)
 	// const traitFileNames = Object.keys(names)
 
 	const traitNames = Object.values(names)
@@ -344,9 +343,11 @@ async function setWeights(trait) {
 	const traits = Array.from(
 		new Set([...traitNames, ...Object.keys(weightsConfig)]),
 	)
-
-	if (hasConfig && numberOfWeights === numberOfNames) weights = config.weights
+	weights = config.weights
+	if (hasConfig && numberOfWeights === numberOfNames) return
 	else {
+		console.info(`*** ${trait} ***`)
+
 		// Handle misconfiguration
 		if (hasConfig) {
 			const missingTraitWeights = Object.values(names)
@@ -421,6 +422,7 @@ async function setWeights(trait) {
 			const hasConfigWeight = configWeight !== undefined
 
 			if (!hasConfigWeight) {
+				// Get manual user input
 				missingWeightTraitNames.push(traitName)
 				weightPrompt.push({
 					type: "input",
@@ -434,12 +436,18 @@ async function setWeights(trait) {
 				})
 			}
 		})
+		console.info({ missingWeightTraitNames })
 
-		// Get manual user input
-		const userEnteredWeights = await inquirer.prompt(weightPrompt)
-		missingWeightTraitNames.forEach((fileName, i) => {
-			weights[fileName] = userEnteredWeights[i]
-		})
+		if (askForManualWeightConfigFix) {
+			const userEnteredWeights = await inquirer.prompt(weightPrompt)
+			console.log({ userEnteredWeights })
+			missingWeightTraitNames.forEach((fileName, i) => {
+				weights[fileName] = userEnteredWeights[fileName + "_weight"]
+			})
+		} else
+			missingWeightTraitNames.forEach((traitName, i) => {
+				weights[traitName] = 0
+			})
 
 		config.weights = weights
 	}
@@ -456,34 +464,47 @@ async function asyncForEach(array, callback) {
 async function generateWeightedTraits() {
 	for (const trait of traits) {
 		const traitWeights = []
-		const files = await getFilesForTrait(trait)
-		files.forEach((file) => {
-			for (let i = 0; i < weights[file]; i++) {
-				traitWeights.push(file)
+		const fileNames = await getFilesForTrait(trait)
+
+		fileNames.forEach((fileName) => {
+			const traitName = fileName.replace(".png", "")
+			const traitWeight = weights[traitName]
+
+			console.log([trait, traitName, traitWeight])
+			for (let i = 0; i < traitWeight; i++) {
+				traitWeights.push(traitName)
 			}
 		})
+
 		weightedTraits.push(traitWeights)
 	}
 }
 
 //GENARATE IMAGES
 async function generateImages() {
+	console.info(`\nSaving images to ${outputPath}`)
+
 	let noMoreMatches = 0
 	let images = []
 	let id = 0
+
 	await generateWeightedTraits()
+
 	if (config.deleteDuplicates) {
 		while (
 			!Object.values(weightedTraits).filter((arr) => arr.length == 0)
-				.length &&
-			noMoreMatches < 20000
+				.length && // ?
+			noMoreMatches < 20000 // ?
 		) {
 			let picked = []
 			order.forEach((id) => {
 				let pickedImgId = pickRandom(weightedTraits[id])
 				picked.push(pickedImgId)
 				let pickedImg = weightedTraits[id][pickedImgId]
-				images.push(basePath + traits[id] + "/" + pickedImg)
+
+				images.push(
+					basePath + "/" + traits[id] + "/" + pickedImg + ".png",
+				)
 			})
 
 			if (existCombination(images)) {
@@ -500,7 +521,8 @@ async function generateImages() {
 					Canvas: Canvas,
 					Image: Image,
 				})
-				await ImageDataURI.outputFile(b64, outputPath + `${id}.png`)
+				console.log(`\nID: ${id}...`)
+				await ImageDataURI.outputFile(b64, outputPath + `/${id}.png`)
 				images = []
 				id++
 			}
@@ -599,15 +621,18 @@ async function writeMetadata() {
 
 const fixConfig = (config) => {
 	const { weights } = config
-	return {
+
+	const fixedConfig = {
 		...config,
 		weights: Object.entries(weights).reduce((weights, [trait, weight]) => {
 			return {
 				...weights,
-				[trait]: parseInt(weight),
+				[trait]: parseInt(weight) ?? 0,
 			}
 		}, {}),
 	}
+
+	return fixedConfig
 }
 
 async function loadConfig() {
