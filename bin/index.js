@@ -15,6 +15,7 @@ const { Image, Canvas } = require("canvas")
 const ImageDataURI = require("image-data-uri")
 
 //SETTINGS
+const MAX_AMOUNT = 3000
 let basePath
 let outputPath
 let traits
@@ -329,6 +330,7 @@ async function setNames(trait) {
 
 //SET WEIGHTS FOR EVERY TRAIT
 async function setWeights(trait) {
+	console.info(`*** ${trait} ***`)
 	// const traitFileNames = Object.keys(names)
 
 	const traitNames = Object.values(names)
@@ -338,6 +340,7 @@ async function setWeights(trait) {
 	const numberOfNames = traitNames.length
 	const numberOfWeights = Object.keys(weightsConfig).length
 
+	// traits from both files + weights
 	const traits = Array.from(
 		new Set([...traitNames, ...Object.keys(weightsConfig)]),
 	)
@@ -383,8 +386,9 @@ async function setWeights(trait) {
 
 			// Print error and exit
 			console.warn({
-				isCorrectConfig: false,
+				category: trait,
 				hasConfig,
+				isCorrectConfig: false,
 				numberOfTraits: traits.length,
 				numberOfWeights,
 				numberOfNames,
@@ -404,28 +408,37 @@ async function setWeights(trait) {
 				["trait", "hasFile", "hasWeight"],
 			)
 			console.error(`Incorrect config! Please fix your config.json file.`)
-			process.exit(1)
+			//	process.exit(1)
 		}
 
-		const files = await getFilesForTrait(trait)
+		const fileNames = await getFilesForTrait(trait)
+		let missingWeightTraitNames = []
+
 		const weightPrompt = []
-		files.forEach((file, _i) => {
-			weightPrompt.push({
-				type: "input",
-				name: names[file] + "_weight",
-				message:
-					"How many " +
-					names[file] +
-					" " +
-					trait +
-					" should there be?",
-				default: parseInt(Math.round(10000 / files.length)),
-			})
+		fileNames.forEach((fileName, _i) => {
+			const traitName = fileName?.replace(".png", "") ?? ""
+			const configWeight = weightsConfig[traitName]
+			const hasConfigWeight = configWeight !== undefined
+
+			if (!hasConfigWeight) {
+				missingWeightTraitNames.push(traitName)
+				weightPrompt.push({
+					type: "input",
+					name: names[fileName] + "_weight",
+					message:
+						trait +
+						": How many " +
+						names[fileName] +
+						" should there be?",
+					default: configWeight ?? 0, //parseInt(Math.round(MAX_AMOUNT / files.length)),
+				})
+			}
 		})
 
-		const selectedWeights = await inquirer.prompt(weightPrompt)
-		files.forEach((file, i) => {
-			weights[file] = selectedWeights[names[file] + "_weight"]
+		// Get manual user input
+		const userEnteredWeights = await inquirer.prompt(weightPrompt)
+		missingWeightTraitNames.forEach((fileName, i) => {
+			weights[fileName] = userEnteredWeights[i]
 		})
 
 		config.weights = weights
@@ -600,9 +613,9 @@ const fixConfig = (config) => {
 async function loadConfig() {
 	try {
 		const data = await readFile("config.json")
-		config = JSON.parse(data.toString())
-		const fixedConfig = fixConfig(config)
-		console.info(fixedConfig)
+		const rawConfig = JSON.parse(data.toString())
+
+		const fixedConfig = fixConfig(rawConfig)
 		config = fixedConfig
 	} catch (error) {}
 }
